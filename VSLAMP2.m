@@ -29,15 +29,15 @@ rng(0);
 % https://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
 % Note that the images in the dataset are already undistorted, hence there
 % is no need to specify the distortion coefficients.
-focalLength    = [1946,1484.4];    % in units of pixels
+focalLength    = [1946*5,1484.4*5];    % in units of pixels
 principalPoint = [720,720];    % in units of pixels
 imageSize      = size(currI,[1 2]);  % in units of pixels
 intrinsics     = cameraIntrinsics(focalLength, principalPoint, imageSize);
 
 % Detect and extract ORB features
-scaleFactor = 1.4;
+scaleFactor = 1.2;
 numLevels   = 8;
-numPoints   = 3000;
+numPoints   = 2000;
 [preFeatures, prePoints] = helperDetectAndExtractFeatures(currI, scaleFactor, numLevels, numPoints); 
 
 currFrameIdx = currFrameIdx + 1;
@@ -249,8 +249,8 @@ while ~isLoopClosed && currFrameIdx < numel(imds.Files)
     % If tracking is lost, try a larger value.
     %
     % localKeyFrameIds:   ViewId of the connected key frames of the current frame
-    numSkipFrames     = 40;
-    numPointsKeyFrame = 175;
+    numSkipFrames     = 50;
+    numPointsKeyFrame = 90;
     [localKeyFrameIds, currPose, mapPointsIdx, featureIdx, isKeyFrame] = ...
         helperTrackLocalMap(mapPointSet, vSetKeyFrames, mapPointsIdx, ...
         featureIdx, currPose, currFeatures, currPoints, intrinsics, scaleFactor, ...
@@ -308,10 +308,10 @@ while ~isLoopClosed && currFrameIdx < numel(imds.Files)
     updatePlot(mapPlot, vSetKeyFrames, mapPointSet);
 
         % Check loop closure after some key frames have been created    
-    if currKeyFrameId > 20
+    if currKeyFrameId > 100
 
         % Minimum number of feature matches of loop edges
-        loopEdgeNumMatches = 50;
+        loopEdgeNumMatches = 40;
 
         % Detect possible loop closure key frame candidates
         [isDetected, validLoopCandidates] = helperCheckLoopClosure(vSetKeyFrames, currKeyFrameId, ...
@@ -336,3 +336,22 @@ while ~isLoopClosed && currFrameIdx < numel(imds.Files)
     addedFramesIdx  = [addedFramesIdx; currFrameIdx]; %#ok<AGROW>
     currFrameIdx    = currFrameIdx + 1;
 end % End of main loop
+%%
+
+if isLoopClosed
+    % Optimize the poses
+    minNumMatches      = 20;
+    vSetKeyFramesOptim = optimizePoses(vSetKeyFrames, minNumMatches, Tolerance=1e-16);
+
+    % Update map points after optimizing the poses
+    mapPointSet = helperUpdateGlobalMap(mapPointSet, vSetKeyFrames, vSetKeyFramesOptim);
+
+    updatePlot(mapPlot, vSetKeyFrames, mapPointSet);
+
+    % Plot the optimized camera trajectory
+    optimizedPoses  = poses(vSetKeyFramesOptim);
+    plotOptimizedTrajectory(mapPlot, optimizedPoses)
+
+    % Update legend
+    showLegend(mapPlot);
+end
